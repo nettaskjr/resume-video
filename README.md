@@ -79,7 +79,8 @@ Abra o arquivo `config.json` e adicione suas chaves de API e/ou ajuste os endere
 
     ```json
     "gemini": {
-      "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent",
+      "url": "https://generativelanguage.googleapis.com/v1beta/models",
+      "model": "gemini-1.5-flash-latest",
       "api_key": "AIzaSy...SUA_CHAVE_AQUI"
     }
     ```

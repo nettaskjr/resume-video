@@ -18,12 +18,23 @@ mostrar_ajuda() {
   echo "Opções:"
   echo "  --provider [serviço]   Define o provedor de LLM a ser usado. Padrão: lmstudio."
   echo "                           Opções disponíveis: lmstudio, chatgpt, gemini."
+  echo "  --list-models          Lista os modelos disponíveis para o provedor 'gemini' e sai."
   echo "  -h, --help             Mostra esta mensagem de ajuda."
   echo
   echo "Exemplos:"
   echo "  $0 video.mp4"
   echo "  $0 --provider chatgpt audio.mp3"
   echo "  $0 --provider gemini aula.wav"
+  echo "  $0 --list-models"
+}
+
+listar_modelos_gemini() {
+    echo ">> Listando modelos disponíveis na API do Gemini..."
+    if [ -z "$GEMINI_API_KEY" ] || [ "$GEMINI_API_KEY" = "SUA_CHAVE_GEMINI_AQUI" ]; then
+        echo "Erro: A chave de API do Gemini não está configurada em '$CONFIG_FILE'." >&2
+        exit 1
+    fi
+    curl -s "https://generativelanguage.googleapis.com/v1beta/models?key=${GEMINI_API_KEY}" | jq .
 }
 
 # --- Carregamento de Configurações ---
@@ -42,6 +53,7 @@ OPENAI_MODEL=$(jq -r '.providers.chatgpt.model' "$CONFIG_FILE")
 OPENAI_API_KEY=$(jq -r '.providers.chatgpt.api_key' "$CONFIG_FILE")
 GEMINI_URL=$(jq -r '.providers.gemini.url' "$CONFIG_FILE")
 GEMINI_API_KEY=$(jq -r '.providers.gemini.api_key' "$CONFIG_FILE")
+GEMINI_MODEL=$(jq -r '.providers.gemini.model' "$CONFIG_FILE")
 
 # Verifica se o provedor padrão foi carregado corretamente
 if [ -z "$PROVIDER" ] || [ "$PROVIDER" = "null" ]; then
@@ -55,6 +67,7 @@ fi
 while [ "$#" -gt 0 ]; do
     case "$1" in
         --provider) PROVIDER="$2"; shift 2 ;;
+        --list-models) listar_modelos_gemini; exit 0 ;;
         -h|--help) mostrar_ajuda; exit 0 ;;
         -*) echo "Opção desconhecida: $1"; mostrar_ajuda; exit 1 ;;
         *) ARQUIVO="$1"; shift 1 ;;
@@ -110,42 +123,49 @@ echo ">> Extensão detectada: .$EXT_LOWER"
 echo ">> Provedor LLM: $PROVIDER"
 echo ">> Base: $BASE"
 
-# ------------ 1) Extrair / preparar áudio ------------
-
-if [ "$EXT_LOWER" = "wav" ]; then
-    echo ">> [1/4] Arquivo já é WAV, usando diretamente: $ARQUIVO"
-    WAV="$ARQUIVO"
-else
-    echo ">> [1/4] Extraindo/convetendo áudio com ffmpeg (mono, 16kHz)..."
-    ffmpeg -i "$ARQUIVO" -ac 1 -ar 16000 "$WAV" -y
-    if [ $? -ne 0 ]; then
-        echo "Erro ao extrair/converter áudio com ffmpeg." >&2
+if [ "$EXT_LOWER" = "txt" ]; then
+    echo ">> [1/2] Arquivo de texto detectado. Pulando extração de áudio e transcrição."
+    TRANSCRICAO=$(cat "$ARQUIVO")
+    if [ -z "$TRANSCRICAO" ]; then
+        echo "Erro: O arquivo de texto '$ARQUIVO' está vazio." >&2
         exit 1
     fi
-    echo ">> Áudio gerado: $WAV"
+    echo ">> Conteúdo do texto carregado com sucesso."
+else
+    # ------------ 1) Extrair / preparar áudio ------------
+    if [ "$EXT_LOWER" = "wav" ]; then
+        echo ">> [1/4] Arquivo já é WAV, usando diretamente: $ARQUIVO"
+        WAV="$ARQUIVO"
+    else
+        echo ">> [1/4] Extraindo/convetendo áudio com ffmpeg (mono, 16kHz)..."
+        ffmpeg -i "$ARQUIVO" -ac 1 -ar 16000 "$WAV" -y
+        if [ $? -ne 0 ]; then
+            echo "Erro ao extrair/converter áudio com ffmpeg." >&2
+            exit 1
+        fi
+        echo ">> Áudio gerado: $WAV"
+    fi
+
+    # ------------ 2) Transcrever com Whisper ------------
+    echo ">> [2/4] Transcrevendo áudio com Whisper (modelo base, pt)..."
+    echo "   (na primeira vez ele pode baixar o modelo; pode demorar um pouco)"
+    whisper "$WAV" --model base --language pt --task transcribe
+    if [ $? -ne 0 ]; then
+        echo "Erro: whisper falhou." >&2
+        exit 1
+    fi
+
+    if [ ! -f "$TXT_TRANSCRICAO" ]; then
+        echo "Erro: transcrição '$TXT_TRANSCRICAO' não foi gerada." >&2
+        exit 1
+    fi
+    echo ">> Transcrição gerada: $TXT_TRANSCRICAO"
+    TRANSCRICAO=$(cat "$TXT_TRANSCRICAO")
 fi
-
-# ------------ 2) Transcrever com Whisper ------------
-
-echo ">> [2/4] Transcrevendo áudio com Whisper (modelo base, pt)..."
-echo "   (na primeira vez ele pode baixar o modelo; pode demorar um pouco)"
-whisper "$WAV" --model base --language pt --task transcribe
-if [ $? -ne 0 ]; then
-    echo "Erro: whisper falhou." >&2
-    exit 1
-fi
-
-if [ ! -f "$TXT_TRANSCRICAO" ]; then
-    echo "Erro: transcrição '$TXT_TRANSCRICAO' não foi gerada." >&2
-    exit 1
-fi
-echo ">> Transcrição gerada: $TXT_TRANSCRICAO"
-
-TRANSCRICAO=$(cat "$TXT_TRANSCRICAO")
 
 # ------------ 3) Montar prompt ------------
 
-echo ">> [3/4] Configurando a geração de perguntas..."
+echo ">> [2/3] Configurando a geração de perguntas..."
 
 read -p "Quantas perguntas você deseja gerar? (padrão: 10): " TOTAL_QUESTOES
 TOTAL_QUESTOES=${TOTAL_QUESTOES:-10} # Se vazio, usa 10
@@ -220,7 +240,7 @@ EOP
 
 # ------------ 4) Chamada ao LM Studio ------------
 
-echo ">> [4/4] Enviando para o provedor '$PROVIDER' via API..."
+echo ">> [3/3] Enviando para o provedor '$PROVIDER' via API..."
 echo "   Resposta bruta será salva em: $API_RAW"
 
 RESPOSTA=""
@@ -247,8 +267,10 @@ case "$PROVIDER" in
 
   "gemini")
     JSON_PAYLOAD=$(jq -n --arg prompt "$PROMPT" \
-      '{contents: [{parts: [{text: $prompt}]}]}')
-    RESPOSTA=$(curl -s "$GEMINI_URL?key=$GEMINI_API_KEY" \
+      '{ "contents": [{"parts": [{"text": $prompt}]}] }')
+    # Constrói a URL final dinamicamente a partir da base e do modelo
+    FINAL_GEMINI_URL="${GEMINI_URL}/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}"
+    RESPOSTA=$(curl -s -X POST "${FINAL_GEMINI_URL}" \
       -H "Content-Type: application/json" \
       -d "$JSON_PAYLOAD")
     ;;
@@ -261,6 +283,12 @@ esac
 
 # Salvar resposta bruta (para debug)
 echo "$RESPOSTA" > "$API_RAW"
+
+if [ -z "$RESPOSTA" ]; then
+    echo "Erro: A chamada para a API do '$PROVIDER' não retornou nenhuma resposta." >&2
+    echo "Verifique se o serviço está em execução (no caso do LM Studio) ou se há conexão com a internet." >&2
+    exit 1
+fi
 
 # Tentar detectar erro na resposta da API
 ERROR_MSG=""
@@ -298,6 +326,8 @@ echo "$CONTEUDO" > "$TXT_SAIDA"
 
 echo ">> PRONTO!"
 echo "Arquivos gerados:"
-echo "  - Transcrição: $TXT_TRANSCRICAO"
+if [ "$EXT_LOWER" != "txt" ]; then
+    echo "  - Transcrição: $TXT_TRANSCRICAO"
+fi
 echo "  - Resumo + Questões: $TXT_SAIDA"
 echo "  - Resposta bruta da API: $API_RAW"

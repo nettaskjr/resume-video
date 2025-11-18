@@ -11,7 +11,8 @@
       "api_key": "SUA_CHAVE_OPENAI_AQUI"
     },
     "gemini": {
-      "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent",
+      "url": "https://generativelanguage.googleapis.com/v1beta/models",
+      "model": "gemini-2.5-flash",
       "api_key": "SUA_CHAVE_GEMINI_AQUI"
     }
   }

@@ -1,1 +1,8 @@
-config.json
+*.json
+*.txt
+*.mp4
+*.srt
+*.tsv
+*.vtt
+*.wav
+*.mkv
