@@ -1,19 +1,20 @@
 {
-  "default_provider": "lmstudio",
-  "providers": {
-    "lmstudio": {
-      "url": "http://127.0.0.1:1234/v1/chat/completions",
-      "model": "local-model"
-    },
-    "chatgpt": {
-      "url": "https://api.openai.com/v1/chat/completions",
-      "model": "gpt-4o",
-      "api_key": "SUA_CHAVE_OPENAI_AQUI"
-    },
-    "gemini": {
-      "url": "https://generativelanguage.googleapis.com/v1beta/models",
-      "model": "gemini-2.5-flash",
-      "api_key": "SUA_CHAVE_GEMINI_AQUI"
-    }
-  }
+	"default_provider": "lmstudio",
+	"whisper_model": "base",
+	"providers": {
+		"lmstudio": {
+			"url": "http://127.0.0.1:1234/v1/chat/completions",
+			"model": "local-model"
+		},
+		"chatgpt": {
+			"url": "https://api.openai.com/v1/chat/completions",
+			"model": "gpt-4o",
+			"api_key": "SUA CHAVE AQUI"
+		},
+		"gemini": {
+			"url": "https://generativelanguage.googleapis.com/v1beta/models",
+			"model": "gemini-2.5-flash",
+			"api_key": "SUA CHAVE AQUI"
+		}
+	}
 }
