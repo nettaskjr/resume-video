@@ -16,9 +16,9 @@ mostrar_ajuda() {
     echo "Processa um arquivo de mídia ou texto para gerar um resumo e um questionário."
     echo
     echo "Opções:"
-    echo "  --provider [serviço]   Define o provedor de LLM a ser usado. Padrão: lmstudio."
+    echo "  --provider [serviço]   Define o provedor de LLM a ser usado. Esta opção também pode ser definida no arquivo de configuração."
     echo "                           Opções disponíveis: lmstudio, chatgpt, gemini."
-    echo "  --list-models [provedor] Lista os modelos disponíveis para o provedor (chatgpt ou gemini) e sai."
+    echo "  --list-models [provedor] Lista os modelos disponíveis para o provedor (chatgpt ou gemini)."
     echo "  -h, --help             Mostra esta mensagem de ajuda."
     echo
     echo "Exemplos:"
@@ -242,9 +242,9 @@ Tipo: ...
 
 GABARITO:
 1) Resposta correta: [letra certa ou texto]
-   Justificativa: [explicação do porquê a resposta está correta, baseada na transcrição]
+    Justificativa: [explicação do porquê a resposta está correta, baseada na transcrição]
 2) Resposta correta: ...
-   Justificativa: ...
+    Justificativa: ...
 
 Regras específicas por tipo:
 
